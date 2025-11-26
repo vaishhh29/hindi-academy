@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
   Calendar, 
@@ -9,9 +9,22 @@ import {
   Mail, 
   Phone,
   Eye,
-  Trash2
+  Trash2,
+  Video, 
+  Plus,
+  ArrowLeft,
+  Save, 
+  BookOpen,
+  Layers,
+  FileVideo,
+  ChevronDown,
+  ChevronUp,
+  MoreVertical
 } from 'lucide-react';
 
+// --- Interface Definitions ---
+
+// 1. User & Appointment Interfaces (Unchanged)
 interface User {
   id: number;
   fullName: string;
@@ -41,46 +54,384 @@ interface Appointment {
   status: 'pending' | 'confirmed' | 'cancelled';
 }
 
+// 2. New Course Hierarchy Interfaces
+interface CourseVideo {
+  id: number;
+  title: string;
+  description: string;
+  url: string; // Base64 or Blob URL
+  duration?: string; // Optional
+}
+
+interface CourseModule {
+  id: number;
+  title: string;
+  videos: CourseVideo[];
+}
+
+interface Course {
+  id: number;
+  title: string;
+  description: string; // About the course
+  outcome: string; // What will they learn
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  duration: string; // e.g. "10 Hours"
+  createdAt: string;
+  modules: CourseModule[];
+}
+
+// --- Component: Course Builder ---
+// Handles creating/editing a full course structure
+const CourseBuilder = ({ 
+  onSave, 
+  onCancel, 
+  initialData 
+}: { 
+  onSave: (course: Course) => void; 
+  onCancel: () => void;
+  initialData?: Course | null;
+}) => {
+  // Course Metadata State
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [outcome, setOutcome] = useState(initialData?.outcome || '');
+  const [level, setLevel] = useState<Course['level']>(initialData?.level || 'Beginner');
+  const [duration, setDuration] = useState(initialData?.duration || '');
+  
+  // Modules State
+  const [modules, setModules] = useState<CourseModule[]>(initialData?.modules || []);
+
+  // Temporary state for adding a video
+  const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+
+  const addModule = () => {
+    const newModule: CourseModule = {
+      id: Date.now(),
+      title: `Module ${modules.length + 1}: New Module`,
+      videos: []
+    };
+    setModules([...modules, newModule]);
+  };
+
+  const updateModuleTitle = (id: number, newTitle: string) => {
+    setModules(modules.map(m => m.id === id ? { ...m, title: newTitle } : m));
+  };
+
+  const removeModule = (id: number) => {
+    setModules(modules.filter(m => m.id !== id));
+  };
+
+const handleVideoUpload = (moduleId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+ const file = e.target.files?.[0];
+ if (!file) return;
+
+ const reader = new FileReader();
+ reader.onloadend = () => {
+ const newVideo: CourseVideo = {
+ id: Date.now(),
+ title: file.name.replace(/\.[^/.]+$/, ''),
+ description: '',
+ url: reader.result as string // <--- THIS is where the video content is stored
+};
+
+ setModules(prevModules => prevModules.map(m => {
+ if (m.id === moduleId) {
+ return { ...m, videos: [...m.videos, newVideo] };
+ }
+ return m;
+ }));
+ };
+
+reader.readAsDataURL(file); 
+ };
+
+  const updateVideoDetails = (moduleId: number, videoId: number, field: keyof CourseVideo, value: string) => {
+    setModules(prevModules => prevModules.map(m => {
+      if (m.id === moduleId) {
+        return {
+          ...m,
+          videos: m.videos.map(v => v.id === videoId ? { ...v, [field]: value } : v)
+        };
+      }
+      return m;
+    }));
+  };
+
+  const removeVideo = (moduleId: number, videoId: number) => {
+    setModules(prevModules => prevModules.map(m => {
+      if (m.id === moduleId) {
+        return { ...m, videos: m.videos.filter(v => v.id !== videoId) };
+      }
+      return m;
+    }));
+  };
+
+  const handleSaveCourse = () => {
+    if (!title.trim()) {
+      alert("Course title is required");
+      return;
+    }
+
+    const courseData: Course = {
+      id: initialData?.id || Date.now(),
+      title,
+      description,
+      outcome,
+      level,
+      duration,
+      createdAt: initialData?.createdAt || new Date().toLocaleDateString(),
+      modules
+    };
+    onSave(courseData);
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+      {/* Builder Header */}
+      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
+        <div className="flex items-center gap-4">
+          <button onClick={onCancel} className="text-gray-500 hover:text-gray-800">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <h2 className="text-xl font-bold text-gray-800">
+            {initialData ? 'Edit Course' : 'Create New Course'}
+          </h2>
+        </div>
+        <button 
+          onClick={handleSaveCourse}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+        >
+          <Save className="w-4 h-4" /> Save Course
+        </button>
+      </div>
+
+      <div className="p-8 space-y-8">
+        {/* 1. Course Cover Details */}
+        <section className="space-y-6 bg-gray-50 p-6 rounded-xl border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+            <BookOpen className="w-5 h-5" /> Course Overview
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course Title</label>
+              <input 
+                type="text" 
+                value={title} 
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="e.g. Master Hindi Speaking"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course Level</label>
+              <select 
+                value={level} 
+                onChange={(e) => setLevel(e.target.value as any)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+              >
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total Duration (Approx)</label>
+              <input 
+                type="text" 
+                value={duration} 
+                onChange={(e) => setDuration(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="e.g. 12 Hours"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">About this Course</label>
+              <textarea 
+                value={description} 
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="Brief summary of the course content..."
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Learning Outcomes</label>
+              <textarea 
+                value={outcome} 
+                onChange={(e) => setOutcome(e.target.value)}
+                rows={2}
+                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+                placeholder="What will students achieve?"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 2. Modules Builder */}
+        <section className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+              <Layers className="w-5 h-5" /> Course Content
+            </h3>
+            <button 
+              onClick={addModule}
+              className="text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1"
+            >
+              <Plus className="w-4 h-4" /> Add Module
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {modules.map((module, mIndex) => (
+              <div key={module.id} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                {/* Module Header */}
+                <div className="bg-gray-100 p-4 flex items-center gap-4">
+                  <Layers className="w-5 h-5 text-gray-400" />
+                  <input 
+                    type="text" 
+                    value={module.title}
+                    onChange={(e) => updateModuleTitle(module.id, e.target.value)}
+                    className="bg-transparent border-none font-semibold text-gray-700 flex-grow focus:ring-0"
+                    placeholder="Module Title"
+                  />
+                  <button 
+                    onClick={() => removeModule(module.id)}
+                    className="text-red-400 hover:text-red-600 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Videos in Module */}
+                <div className="p-4 bg-gray-50/50 space-y-3">
+                  {module.videos.length === 0 && (
+                    <p className="text-sm text-gray-400 italic text-center py-2">No videos in this module yet.</p>
+                  )}
+                  
+                  {module.videos.map((video, vIndex) => (
+                    <div key={video.id} className="flex gap-4 p-3 bg-white border border-gray-200 rounded-lg items-start">
+                      <div className="w-32 h-20 bg-black rounded flex-shrink-0 flex items-center justify-center">
+                        <video src={video.url} className="w-full h-full object-cover rounded" />
+                      </div>
+                      <div className="flex-grow space-y-2">
+                        <input 
+                          type="text" 
+                          value={video.title}
+                          onChange={(e) => updateVideoDetails(module.id, video.id, 'title', e.target.value)}
+                          className="w-full text-sm font-medium border-b border-transparent hover:border-gray-300 focus:border-orange-500 focus:outline-none bg-transparent"
+                          placeholder="Video Title"
+                        />
+                        <input 
+                          type="text" 
+                          value={video.description}
+                          onChange={(e) => updateVideoDetails(module.id, video.id, 'description', e.target.value)}
+                          className="w-full text-xs text-gray-500 border-b border-transparent hover:border-gray-300 focus:border-orange-500 focus:outline-none bg-transparent"
+                          placeholder="Video Description"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => removeVideo(module.id, video.id)}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add Video Button */}
+                  <div className="mt-4 flex justify-center">
+                    <input 
+                      type="file" 
+                      ref={(el) => (fileInputRefs.current[module.id] = el)}
+                      className="hidden" 
+                      accept="video/*"
+                      onChange={(e) => handleVideoUpload(module.id, e)}
+                    />
+                    <button 
+                      onClick={() => fileInputRefs.current[module.id]?.click()}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1 border border-dashed border-blue-300 px-4 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 w-full justify-center"
+                    >
+                      <FileVideo className="w-4 h-4" /> Add Video to Module
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+// --- Main AdminPanel Component ---
 const AdminPanel = () => {
+  // State
   const [users, setUsers] = useState<User[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [activeTab, setActiveTab] = useState<'users' | 'appointments'>('users');
+  const [courses, setCourses] = useState<Course[]>([]);
+  
+  const [activeTab, setActiveTab] = useState<'users' | 'appointments' | 'courses'>('users');
   const [selectedItem, setSelectedItem] = useState<User | Appointment | null>(null);
+  
+  // Course View State: 'list' | 'create' | 'edit'
+  const [courseViewMode, setCourseViewMode] = useState<'list' | 'create' | 'edit'>('list');
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
+  // Initialization
   useEffect(() => {
-    // Load data from localStorage
-    const storedUsers = JSON.parse(localStorage.getItem('signupUsers') || '[]');
-    const storedAppointments = JSON.parse(localStorage.getItem('appointments') || '[]');
-    setUsers(storedUsers);
-    setAppointments(storedAppointments);
+    setUsers(JSON.parse(localStorage.getItem('signupUsers') || '[]'));
+    setAppointments(JSON.parse(localStorage.getItem('appointments') || '[]'));
+    setCourses(JSON.parse(localStorage.getItem('courses') || '[]'));
   }, []);
 
-  const updateUserStatus = (userId: number, status: 'approved' | 'rejected') => {
-    const updatedUsers = users.map(user =>
-      user.id === userId ? { ...user, status } : user
-    );
-    setUsers(updatedUsers);
-    localStorage.setItem('signupUsers', JSON.stringify(updatedUsers));
+  // Handlers for Users/Appointments (Condensed for brevity)
+  const updateUserStatus = (id: number, status: any) => {
+    const updated = users.map(u => u.id === id ? { ...u, status } : u);
+    setUsers(updated);
+    localStorage.setItem('signupUsers', JSON.stringify(updated));
+  };
+  const deleteUser = (id: number) => {
+    const updated = users.filter(u => u.id !== id);
+    setUsers(updated);
+    localStorage.setItem('signupUsers', JSON.stringify(updated));
+  };
+  const updateAppointmentStatus = (id: number, status: any) => {
+    const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
+    setAppointments(updated);
+    localStorage.setItem('appointments', JSON.stringify(updated));
+  };
+  const deleteAppointment = (id: number) => {
+    const updated = appointments.filter(a => a.id !== id);
+    setAppointments(updated);
+    localStorage.setItem('appointments', JSON.stringify(updated));
   };
 
-  const updateAppointmentStatus = (appointmentId: number, status: 'confirmed' | 'cancelled') => {
-    const updatedAppointments = appointments.map(appointment =>
-      appointment.id === appointmentId ? { ...appointment, status } : appointment
-    );
-    setAppointments(updatedAppointments);
-    localStorage.setItem('appointments', JSON.stringify(updatedAppointments));
+  // --- Course Logic ---
+  const handleSaveCourse = (course: Course) => {
+    let updatedCourses;
+    if (courseViewMode === 'create') {
+      updatedCourses = [...courses, course];
+    } else {
+      updatedCourses = courses.map(c => c.id === course.id ? course : c);
+    }
+    setCourses(updatedCourses);
+    localStorage.setItem('courses', JSON.stringify(updatedCourses));
+    setCourseViewMode('list');
+    setEditingCourse(null);
   };
 
-  const deleteUser = (userId: number) => {
-    const updatedUsers = users.filter(user => user.id !== userId);
-    setUsers(updatedUsers);
-    localStorage.setItem('signupUsers', JSON.stringify(updatedUsers));
-  };
-
-  const deleteAppointment = (appointmentId: number) => {
-    const updatedAppointments = appointments.filter(appointment => appointment.id !== appointmentId);
-    setAppointments(updatedAppointments);
-    localStorage.setItem('appointments', JSON.stringify(updatedAppointments));
+  const deleteCourse = (id: number) => {
+    if(confirm("Are you sure you want to delete this course?")) {
+      const updated = courses.filter(c => c.id !== id);
+      setCourses(updated);
+      localStorage.setItem('courses', JSON.stringify(updated));
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -92,75 +443,120 @@ const AdminPanel = () => {
     }
   };
 
+  const renderCourses = () => {
+    if (courseViewMode === 'create' || courseViewMode === 'edit') {
+      return (
+        <CourseBuilder 
+          initialData={editingCourse}
+          onSave={handleSaveCourse}
+          onCancel={() => { setCourseViewMode('list'); setEditingCourse(null); }}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Course Management</h2>
+            <p className="text-gray-500 text-sm">Create and manage your video courses</p>
+          </div>
+          <button 
+            onClick={() => { setEditingCourse(null); setCourseViewMode('create'); }}
+            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center gap-2 font-medium"
+          >
+            <Plus className="w-5 h-5" /> Create New Course
+          </button>
+        </div>
+
+        {courses.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-lg border border-dashed border-gray-300">
+            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">No courses created yet. Click above to start.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {courses.map(course => (
+              <motion.div 
+                key={course.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden flex flex-col"
+              >
+                <div className="h-32 bg-gradient-to-r from-orange-400 to-pink-500 p-6 flex flex-col justify-end text-white">
+                  <h3 className="text-xl font-bold">{course.title}</h3>
+                  <div className="flex items-center gap-2 text-sm opacity-90">
+                    <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{course.level}</span>
+                    <span>• {course.duration}</span>
+                  </div>
+                </div>
+                <div className="p-6 flex-grow">
+                   <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
+                     <Layers className="w-4 h-4" /> {course.modules.length} Modules
+                     <span>•</span>
+                     <Video className="w-4 h-4" /> {course.modules.reduce((acc, m) => acc + m.videos.length, 0)} Videos
+                   </div>
+                   <p className="text-gray-600 text-sm line-clamp-3 mb-4">{course.description}</p>
+                   
+                   <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto">
+                     <button 
+                       onClick={() => { setEditingCourse(course); setCourseViewMode('edit'); }}
+                       className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                     >
+                       <Layers className="w-4 h-4" /> Manage Content
+                     </button>
+                     <button 
+                       onClick={() => deleteCourse(course.id)}
+                       className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                     >
+                       <Trash2 className="w-5 h-5" />
+                     </button>
+                   </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen py-12 bg-gray-50">
       {/* Header */}
       <section className="bg-gradient-to-r from-orange-500 to-green-500 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center"
-          >
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center">
             <h1 className="text-5xl font-bold mb-6">Admin Panel</h1>
-            <p className="text-xl">
-              Manage student registrations and appointments
-            </p>
+            <p className="text-xl">Manage student registrations, appointments, and courses</p>
           </motion.div>
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats Section */}
       <section className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="bg-white p-6 rounded-lg shadow-lg text-center"
-            >
+            <div className="bg-white p-6 rounded-lg shadow-lg text-center">
               <Users className="w-12 h-12 text-blue-500 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-800">{users.length}</h3>
               <p className="text-gray-600">Total Registrations</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="bg-white p-6 rounded-lg shadow-lg text-center"
-            >
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-lg text-center">
               <Calendar className="w-12 h-12 text-purple-500 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-800">{appointments.length}</h3>
               <p className="text-gray-600">Total Appointments</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="bg-white p-6 rounded-lg shadow-lg text-center"
-            >
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-lg text-center">
               <Clock className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-800">
-                {users.filter(u => u.status === 'pending').length + 
-                 appointments.filter(a => a.status === 'pending').length}
-              </h3>
+              <h3 className="text-2xl font-bold text-gray-800">{users.filter(u => u.status === 'pending').length + appointments.filter(a => a.status === 'pending').length}</h3>
               <p className="text-gray-600">Pending Actions</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="bg-white p-6 rounded-lg shadow-lg text-center"
-            >
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-gray-800">
-                {users.filter(u => u.status === 'approved').length + 
-                 appointments.filter(a => a.status === 'confirmed').length}
-              </h3>
-              <p className="text-gray-600">Approved/Confirmed</p>
-            </motion.div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+              <BookOpen className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-gray-800">{courses.length}</h3>
+              <p className="text-gray-600">Active Courses</p>
+            </div>
           </div>
         </div>
       </section>
@@ -168,215 +564,107 @@ const AdminPanel = () => {
       {/* Main Content */}
       <section className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Tabs */}
-          <div className="bg-white rounded-lg shadow-lg">
+          <div className="bg-white rounded-lg shadow-lg min-h-[600px]">
             <div className="border-b border-gray-200">
               <nav className="flex">
-                <button
-                  onClick={() => setActiveTab('users')}
-                  className={`px-6 py-4 text-sm font-medium ${
-                    activeTab === 'users'
-                      ? 'border-b-2 border-orange-500 text-orange-600'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Users className="w-4 h-4 inline mr-2" />
-                  Student Registrations ({users.length})
+                <button onClick={() => setActiveTab('users')} className={`px-6 py-4 text-sm font-medium ${activeTab === 'users' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <Users className="w-4 h-4 inline mr-2" /> Registrations
                 </button>
-                <button
-                  onClick={() => setActiveTab('appointments')}
-                  className={`px-6 py-4 text-sm font-medium ${
-                    activeTab === 'appointments'
-                      ? 'border-b-2 border-orange-500 text-orange-600'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4 inline mr-2" />
-                  Appointments ({appointments.length})
+                <button onClick={() => setActiveTab('appointments')} className={`px-6 py-4 text-sm font-medium ${activeTab === 'appointments' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <Calendar className="w-4 h-4 inline mr-2" /> Appointments
+                </button>
+                <button onClick={() => setActiveTab('courses')} className={`px-6 py-4 text-sm font-medium ${activeTab === 'courses' ? 'border-b-2 border-orange-500 text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <BookOpen className="w-4 h-4 inline mr-2" /> Course Management
                 </button>
               </nav>
             </div>
 
-            <div className="p-6">
-              {activeTab === 'users' ? (
+            <div className="p-6 bg-gray-50 min-h-[600px]">
+              {activeTab === 'users' && (
+                 <div className="space-y-4">
+                 {users.length === 0 ? <p className="text-gray-500 text-center py-8">No student registrations yet.</p> : users.map((user) => (
+                   <motion.div key={user.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="border bg-white border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                     <div className="flex justify-between items-start">
+                       <div className="flex-1">
+                         <div className="flex items-center space-x-4 mb-2">
+                           <h3 className="text-lg font-semibold text-gray-800">{user.fullName}</h3>
+                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>{user.status}</span>
+                         </div>
+                         <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                           <div className="flex items-center"><Mail className="w-4 h-4 mr-2" />{user.email}</div>
+                           <div className="flex items-center"><Phone className="w-4 h-4 mr-2" />{user.phone}</div>
+                           <div>Course: {user.courseType}</div>
+                         </div>
+                       </div>
+                       <div className="flex space-x-2">
+                         <button onClick={() => setSelectedItem(user)} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Eye className="w-4 h-4" /></button>
+                         {user.status === 'pending' && (
+                           <>
+                             <button onClick={() => updateUserStatus(user.id, 'approved')} className="p-2 text-green-600 hover:bg-green-50 rounded"><CheckCircle className="w-4 h-4" /></button>
+                             <button onClick={() => updateUserStatus(user.id, 'rejected')} className="p-2 text-red-600 hover:bg-red-50 rounded"><XCircle className="w-4 h-4" /></button>
+                           </>
+                         )}
+                         <button onClick={() => deleteUser(user.id)} className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                       </div>
+                     </div>
+                   </motion.div>
+                 ))}
+               </div>
+              )}
+              
+              {activeTab === 'appointments' && (
                 <div className="space-y-4">
-                  {users.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No student registrations yet.</p>
-                  ) : (
-                    users.map((user) => (
-                      <motion.div
-                        key={user.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-4 mb-2">
-                              <h3 className="text-lg font-semibold text-gray-800">
-                                {user.fullName}
-                              </h3>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                                {user.status}
-                              </span>
-                            </div>
-                            <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
-                              <div className="flex items-center">
-                                <Mail className="w-4 h-4 mr-2" />
-                                {user.email}
-                              </div>
-                              <div className="flex items-center">
-                                <Phone className="w-4 h-4 mr-2" />
-                                {user.phone}
-                              </div>
-                              <div>
-                                Course: {user.courseType}
-                              </div>
-                            </div>
+                  {appointments.length === 0 ? <p className="text-gray-500 text-center py-8">No appointments yet.</p> : appointments.map((app) => (
+                    <motion.div key={app.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="border bg-white border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-4 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-800">{app.fullName}</h3>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(app.status)}`}>{app.status}</span>
                           </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => setSelectedItem(user)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            {user.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => updateUserStatus(user.id, 'approved')}
-                                  className="p-2 text-green-600 hover:bg-green-50 rounded"
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => updateUserStatus(user.id, 'rejected')}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => deleteUser(user.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                            <div className="flex items-center"><Mail className="w-4 h-4 mr-2" />{app.email}</div>
+                            <div className="flex items-center"><Phone className="w-4 h-4 mr-2" />{app.phone}</div>
+                            <div>Date: {app.preferredDate}</div>
                           </div>
                         </div>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {appointments.length === 0 ? (
-                    <p className="text-gray-500 text-center py-8">No appointments booked yet.</p>
-                  ) : (
-                    appointments.map((appointment) => (
-                      <motion.div
-                        key={appointment.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-4 mb-2">
-                              <h3 className="text-lg font-semibold text-gray-800">
-                                {appointment.fullName}
-                              </h3>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-                                {appointment.status}
-                              </span>
-                            </div>
-                            <div className="grid md:grid-cols-4 gap-4 text-sm text-gray-600">
-                              <div className="flex items-center">
-                                <Mail className="w-4 h-4 mr-2" />
-                                {appointment.email}
-                              </div>
-                              <div className="flex items-center">
-                                <Phone className="w-4 h-4 mr-2" />
-                                {appointment.phone}
-                              </div>
-                              <div>
-                                Type: {appointment.appointmentType}
-                              </div>
-                              <div>
-                                Date: {appointment.preferredDate} at {appointment.preferredTime}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => setSelectedItem(appointment)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            {appointment.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => updateAppointmentStatus(appointment.id, 'confirmed')}
-                                  className="p-2 text-green-600 hover:bg-green-50 rounded"
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => deleteAppointment(appointment.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))
-                  )}
+                        <div className="flex space-x-2">
+                         <button onClick={() => setSelectedItem(app)} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Eye className="w-4 h-4" /></button>
+                         {app.status === 'pending' && (
+                           <>
+                             <button onClick={() => updateAppointmentStatus(app.id, 'confirmed')} className="p-2 text-green-600 hover:bg-green-50 rounded"><CheckCircle className="w-4 h-4" /></button>
+                             <button onClick={() => updateAppointmentStatus(app.id, 'cancelled')} className="p-2 text-red-600 hover:bg-red-50 rounded"><XCircle className="w-4 h-4" /></button>
+                           </>
+                         )}
+                         <button onClick={() => deleteAppointment(app.id)} className="p-2 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                       </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               )}
+
+              {activeTab === 'courses' && renderCourses()}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Modal for viewing details */}
+      {/* Details Modal (For Users/Appointments) */}
       {selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-y-auto"
-          >
+          <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-800">
-                  {'courseType' in selectedItem ? 'Student Details' : 'Appointment Details'}
-                </h3>
-                <button
-                  onClick={() => setSelectedItem(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+                <h3 className="text-2xl font-bold text-gray-800">Details</h3>
+                <button onClick={() => setSelectedItem(null)} className="text-gray-500 hover:text-gray-700"><XCircle className="w-6 h-6" /></button>
               </div>
               <div className="space-y-4">
                 {Object.entries(selectedItem).map(([key, value]) => {
                   if (key === 'id') return null;
                   return (
                     <div key={key} className="grid grid-cols-3 gap-4">
-                      <dt className="text-sm font-medium text-gray-500 capitalize">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}:
-                      </dt>
+                      <dt className="text-sm font-medium text-gray-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</dt>
                       <dd className="text-sm text-gray-900 col-span-2">{value}</dd>
                     </div>
                   );

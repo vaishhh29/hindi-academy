@@ -11,7 +11,10 @@ import AdminPanel from './pages/AdminPanel';
 import Footer from './components/Footer';
 import WhatsAppFloat from './components/WhatsAppFloat';
 import ScrollToTop from './Scroll';
-
+import Login from './pages/Login';
+import CourseList from './pages/CourseList';
+import CourseDetails from './pages/CourseDetails';
+import CoursePlayer from './pages/CoursePlayer';
 function App() {
   const [audioPlayed, setAudioPlayed] = useState(false);
 
@@ -42,6 +45,10 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/book-appointment" element={<BookAppointment />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path='/login' element={<Login/>}/>
+            <Route path="/courses" element={<CourseList />} />
+            <Route path="/courses/:id" element={<CourseDetails />} />
+            <Route path="/courses/:id/play" element={<CoursePlayer />} />
           </Routes>
         </motion.main>
         <Footer />

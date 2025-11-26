@@ -583,6 +583,18 @@ const Signup = () => {
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-green-500 via-amber-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 </button>
+                <div className="text-center mt-6">
+  <p className="text-sm text-gray-600">
+    Already have an account?
+    <a
+      href="/login"
+      className="text-orange-600 font-semibold hover:underline ml-1"
+    >
+      Login
+    </a>
+  </p>
+</div>
+
                 <p className="text-xs sm:text-sm text-gray-500 mt-4">🔒 Your information is secure and confidential</p>
               </div>
             </form>
